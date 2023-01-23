@@ -7,6 +7,7 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 
+
 # Opening JSON file
 with open('teams_demo.json') as json_file:
     team_dict = json.load(json_file)
@@ -31,7 +32,7 @@ class Demo():
                  agent='Mozilla/5.0 (Windows NT 10.0; Windows; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36'):
         self.agent = agent
 
-    def last_fixtures(self, team):
+    def last_fixtures(self, team, league):
         '''
         Obtain last 5 fixtures
 
@@ -40,13 +41,16 @@ class Demo():
         team : string,
             name of team
 
+        league : string,
+            name of league
+
         Returns
         -------
         C : dict
             Returns last 5 fixtures
 
         '''
-        url = team_df[team_df['Team'] == team]['url'].values[0]
+        url = team_df[(team_df['Team'] == team) & (team_df['League'] == league)]['url'].values[0]
         response = requests.get(url, headers={'User-Agent': self.agent})
 
         try:
@@ -61,7 +65,7 @@ class Demo():
         except ImportError:
             return ('incorect teamname, country or both')
 
-    def compare(self, team1, team2):
+    def compare(self, team1, team2, league):
         '''
         Compare last 5 fixtures of each team and return similar team
         and number of similar team as the score
@@ -74,14 +78,17 @@ class Demo():
         team2 : string,
             name of team
 
+        league : string
+            name of league
+
         Returns
         -------
         C : dict
             Returns similar team and number of similar team as the score
         '''
         try:
-            tab1 = self.last_fixtures(team1)
-            tab2 = self.last_fixtures(team2)
+            tab1 = self.last_fixtures(team1, league)
+            tab2 = self.last_fixtures(team2, league)
 
             t1_home = tab1['Home team'].values.tolist()
             t2_home = tab2['Home team'].values.tolist()
@@ -207,11 +214,10 @@ class Demo():
 
         for row in final_df.index:
             try:
-                team = self.compare(final_df['Home team'][row], final_df['Away team'][row])
+                team = self.compare(final_df['Home team'][row], final_df['Away team'][row], final_df['league'][row])
                 df_teams['teams'][row] = team['teams'][:]
             except TypeError:
                 pass
-        df_teams
         df_teams.dropna(inplace=True)
 
         return df_teams.to_dict('r')
