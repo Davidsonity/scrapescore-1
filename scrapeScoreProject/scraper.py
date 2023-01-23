@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -13,7 +14,7 @@ with open('teams_demo.json') as json_file:
 team_df = pd.DataFrame.from_dict(team_dict)
 
 
-class demo():
+class Demo():
     '''
     Match Webscraping and Analysis.
     Scraping Matches and
@@ -95,12 +96,10 @@ class demo():
             t2_teams.remove(team2)
 
             similar_team = list(t1_teams & t2_teams)
-            score = len(similar_team)
+            if len(similar_team) < 1:
+                similar_team = np.nan
 
-            result = {
-                'team': similar_team,
-                'score': score
-            }
+            result = {'teams': similar_team, }
 
             return result
         except TypeError:
@@ -191,10 +190,28 @@ class demo():
                 # Concate dataframes
                 frames = [df1, df]
                 df1 = pd.concat(frames)
+                df1['game-title'] = df1['Home team'] + ' vs. ' + df1['Away team']
+                df1['date'] = date
+                df1['league'] = df1['League']
+                # df1[['game-title', 'date', 'league']]
             except IndexError:
+                pass
+            except KeyError:
                 pass
         # sort dataframe
         final_df = df1.sort_values(['Time'])
         final_df = final_df.reset_index(drop=True)
 
-        return final_df
+        df_teams = final_df[['game-title', 'date', 'league']]
+        df_teams['teams'] = np.nan
+
+        for row in final_df.index:
+            try:
+                team = Demo.compare(final_df['Home team'][row], final_df['Away team'][row])
+                df_teams['teams'][row] = team['teams'][:]
+            except TypeError:
+                pass
+        df_teams
+        df_teams.dropna(inplace=True)
+
+        return df_teams.to_dict('r')
