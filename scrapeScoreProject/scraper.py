@@ -1,11 +1,19 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+import json
 
 import warnings
 warnings.filterwarnings('ignore')
 
-class Match():
+# Opening JSON file
+with open('teams_demo.json') as json_file:
+    team_dict = json.load(json_file)
+
+team_df = pd.DataFrame.from_dict(team_dict)
+
+
+class demo():
     '''
     Match Webscraping and Analysis.
     Scraping Matches and
@@ -22,7 +30,7 @@ class Match():
                  agent='Mozilla/5.0 (Windows NT 10.0; Windows; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36'):
         self.agent = agent
 
-    def last_fixtures(self, team, country):
+    def last_fixtures(self, team):
         '''
         Obtain last 5 fixtures
 
@@ -30,8 +38,6 @@ class Match():
         ----------
         team : string,
             name of team
-        country : string
-            country of team
 
         Returns
         -------
@@ -39,30 +45,22 @@ class Match():
             Returns last 5 fixtures
 
         '''
-        team, country = team.lower(), country.lower()
-        team, country = team.replace(' ', '-'), country.replace(' ', '-')
-
-        url = 'https://ng.soccerway.com/teams/{1}/{0}-fc/'.format(team, country)
+        url = team_df[team_df['Team'] == team]['url'].values[0]
         response = requests.get(url, headers={'User-Agent': self.agent})
-        if response.status_code != 200:
-            url = 'https://ng.soccerway.com/teams/{1}/{0}-football-club/'.format(team, country)
-            response = requests.get(url, headers=self.headers)
-
-            if response.status_code != 200:
-                url = 'https://ng.soccerway.com/teams/{1}/{0}/'.format(team, country)
-                response = requests.get(url, headers=self.headers)
 
         try:
             soup = BeautifulSoup(response.text, 'html.parser')
             table = soup.find_all('table', class_='matches')
             df = pd.read_html(str(table))[0]
             df.drop(df.columns[-2:], axis=1, inplace=True)
-            df.rename(columns={'Outcome': 'Home team', 'Home team': 'Outcome', 'Score/Time': 'Away team'}, inplace=True)
+            df.rename(columns={'Outcome': 'Home team', 'Home team': 'Outcome', 'Score/Time': 'Away team',
+                               'Competition': 'League'}, inplace=True)
+
             return df[:5]
         except ImportError:
             return ('incorect teamname, country or both')
 
-    def compare(self, team1, country1, team2, country2):
+    def compare(self, team1, team2):
         '''
         Compare last 5 fixtures of each team and return similar team
         and number of similar team as the score
@@ -71,13 +69,9 @@ class Match():
         ----------
         team1 : string,
             name of team
-        country1 : string
-            country of team1
 
         team2 : string,
             name of team
-        country2 : string
-            country of team2
 
         Returns
         -------
@@ -85,8 +79,8 @@ class Match():
             Returns similar team and number of similar team as the score
         '''
         try:
-            tab1 = self.last_fixtures(team1, country1)
-            tab2 = self.last_fixtures(team2, country2)
+            tab1 = self.last_fixtures(team1)
+            tab2 = self.last_fixtures(team2)
 
             t1_home = tab1['Home team'].values.tolist()
             t2_home = tab2['Home team'].values.tolist()
@@ -97,11 +91,8 @@ class Match():
             t1_teams = set(t1_home + t1_away)
             t2_teams = set(t2_home + t2_away)
 
-            team1, country1 = team1.lower(), country1.lower()
-            team2, country2 = team2.lower(), country2.lower()
-
-            t1_teams.remove(team1.title())
-            t2_teams.remove(team2.title())
+            t1_teams.remove(team1)
+            t2_teams.remove(team2)
 
             similar_team = list(t1_teams & t2_teams)
             score = len(similar_team)
@@ -139,7 +130,7 @@ class Match():
         # Create Empty dataframe
         df1 = pd.DataFrame({'Time': [],
                             'Country': [],
-                            'Competition': [],
+                            'League': [],
                             'Home team': [],
                             'Score': [],
                             'Away team': []
@@ -159,7 +150,7 @@ class Match():
                 url2 = 'https://ng.soccerway.com/' + url2
 
                 # Get extracted url page
-                response2 = requests.get(url2, headers=self.headers)
+                response2 = requests.get(url2, headers={'User-Agent': self.agent})
 
                 # Using beautiful soup to parse it
                 soup2 = BeautifulSoup(response2.text, 'html.parser')
@@ -169,7 +160,7 @@ class Match():
                 url3 = tag2.a.get('href') + 'matches/'
                 url3 = 'https://ng.soccerway.com/' + url3
 
-                response3 = requests.get(url3, headers=self.headers)
+                response3 = requests.get(url3, headers={'User-Agent': self.agent})
 
                 # Using beautiful soup to parse it
                 soup3 = BeautifulSoup(response3.text, 'html.parser')
@@ -188,16 +179,20 @@ class Match():
                 df = df.iloc[start + 1:end + 2:2]
                 df.reset_index(drop=True, inplace=True)
                 df.drop(df.columns[-1:], axis=1, inplace=True)
-                df.rename(columns={'Day': 'Time', 'Score/Time': 'Score'}, inplace=True)
+                df.rename(columns={'Day': 'Time', 'Score/Time': 'Score', 'Competition': 'League'}, inplace=True)
                 df['Country'] = country
-                df['Competition'] = competition
-                df = df[['Time', 'Country', 'Competition', 'Home team', 'Score', 'Away team']]
+                df['League'] = competition
+                df = df[['Time', 'Country', 'League', 'Home team', 'Score', 'Away team']]
+                leagues = team_df.League.unique()
+                countries = team_df.Country.unique()
+                df = df[df['Country'].isin(countries)]
+                df = df[df['League'].isin(leagues)]
 
                 # Concate dataframes
                 frames = [df1, df]
                 df1 = pd.concat(frames)
             except IndexError:
-                print(country, competition)
+                pass
         # sort dataframe
         final_df = df1.sort_values(['Time'])
         final_df = final_df.reset_index(drop=True)
