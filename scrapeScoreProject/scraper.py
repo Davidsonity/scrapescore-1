@@ -207,7 +207,7 @@ class Demo():
 
         for row in final_df.index:
             try:
-                team = Demo.compare(final_df['Home team'][row], final_df['Away team'][row])
+                team = self.compare(final_df['Home team'][row], final_df['Away team'][row])
                 df_teams['teams'][row] = team['teams'][:]
             except TypeError:
                 pass
